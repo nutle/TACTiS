@@ -354,6 +354,8 @@ class TACTiS(nn.Module):
         self.stage = 1
         self.copula_loss = None
         self.marginal_logdet = None
+        self.unnormalized_copula_loss = None
+        self.unnormalized_marginal_logdet = None
         self.current_normalizer = None
 
     def set_stage(self, stage: int):
