@@ -38,6 +38,7 @@ class Encoder(nn.Module):
         attention_dim: int,
         attention_feedforward_dim: int,
         dropout: float = 0.1,
+        use_multihead_attention: bool = False,
     ):
         """
         Parameters:
@@ -52,6 +53,8 @@ class Encoder(nn.Module):
             The dimension of the hidden layer in the feed forward step.
         dropout: float, default to 0.1
             Dropout parameter for the attention.
+        use_multihead_attention: bool, default to False
+            If true, use the MultiheadAttention module instead of the TransformerEncoderLayer.
         """
         super().__init__()
 
@@ -60,16 +63,24 @@ class Encoder(nn.Module):
         self.attention_dim = attention_dim
         self.attention_feedforward_dim = attention_feedforward_dim
         self.dropout = dropout
+        self.use_multihead_attention = use_multihead_attention
 
-        self.transformer_encoder = nn.TransformerEncoder(
-            nn.TransformerEncoderLayer(
-                self.attention_dim * self.attention_heads,
-                self.attention_heads,
-                self.attention_feedforward_dim,
-                self.dropout,
-            ),
-            self.attention_layers,
-        )
+        if self.use_multihead_attention:
+            self.multihead_attention = nn.MultiheadAttention(
+                embed_dim=self.attention_dim * self.attention_heads,
+                num_heads=self.attention_heads,
+                dropout=self.dropout,
+            )
+        else:
+            self.transformer_encoder = nn.TransformerEncoder(
+                nn.TransformerEncoderLayer(
+                    self.attention_dim * self.attention_heads,
+                    self.attention_heads,
+                    self.attention_feedforward_dim,
+                    self.dropout,
+                ),
+                self.attention_layers,
+            )
         self.total_attention_time = 0.0
 
     @property
@@ -109,13 +120,10 @@ class Encoder(nn.Module):
 
         # The PyTorch implementation wants the following order: [tokens, batch, embedding]
         encoded = encoded.transpose(0, 1)
-        # Arjun: I have changed this to the usual full attention
-        output = self.transformer_encoder(encoded)
-        # # This was the previous code
-        # output = self.transformer_encoder(
-        #     encoded, mask=torch.zeros(encoded.shape[0], encoded.shape[0], device=encoded.device)
-        # )
-        # Reset to the original shape
+        if self.use_multihead_attention:
+            output, _ = self.multihead_attention(encoded, encoded, encoded)
+        else:
+            output = self.transformer_encoder(encoded)
         output = output.transpose(0, 1)
         attention_end_time = time.time()
         self.total_attention_time = attention_end_time - attention_start_time
@@ -150,6 +158,7 @@ class TemporalEncoder(nn.Module):
         attention_dim: int,
         attention_feedforward_dim: int,
         dropout: float = 0.1,
+        use_multihead_attention: bool = False,
     ):
         """
         Parameters:
@@ -167,6 +176,8 @@ class TemporalEncoder(nn.Module):
             The dimension of the hidden layer in the feed forward step.
         dropout: float, default to 0.1
             Dropout parameter for the attention.
+        use_multihead_attention: bool, default to False
+            If true, use the MultiheadAttention module instead of the TransformerEncoderLayer.
         """
         super().__init__()
 
@@ -175,31 +186,39 @@ class TemporalEncoder(nn.Module):
         self.attention_dim = attention_dim
         self.attention_feedforward_dim = attention_feedforward_dim
         self.dropout = dropout
+        self.use_multihead_attention = use_multihead_attention
         self.total_attention_time = 0.0
 
-        self.layer_timesteps = nn.ModuleList(
-            [
-                nn.TransformerEncoderLayer(
-                    self.attention_dim * self.attention_heads,
-                    self.attention_heads,
-                    self.attention_feedforward_dim,
-                    self.dropout,
-                )
-                for _ in range(self.attention_layers)
-            ]
-        )
+        if self.use_multihead_attention:
+            self.multihead_attention = nn.MultiheadAttention(
+                embed_dim=self.attention_dim * self.attention_heads,
+                num_heads=self.attention_heads,
+                dropout=self.dropout,
+            )
+        else:
+            self.layer_timesteps = nn.ModuleList(
+                [
+                    nn.TransformerEncoderLayer(
+                        self.attention_dim * self.attention_heads,
+                        self.attention_heads,
+                        self.attention_feedforward_dim,
+                        self.dropout,
+                    )
+                    for _ in range(self.attention_layers)
+                ]
+            )
 
-        self.layer_series = nn.ModuleList(
-            [
-                nn.TransformerEncoderLayer(
-                    self.attention_dim * self.attention_heads,
-                    self.attention_heads,
-                    self.attention_feedforward_dim,
-                    self.dropout,
-                )
-                for _ in range(self.attention_layers)
-            ]
-        )
+            self.layer_series = nn.ModuleList(
+                [
+                    nn.TransformerEncoderLayer(
+                        self.attention_dim * self.attention_heads,
+                        self.attention_heads,
+                        self.attention_feedforward_dim,
+                        self.dropout,
+                    )
+                    for _ in range(self.attention_layers)
+                ]
+            )
 
     @property
     def embedding_dim(self) -> int:
@@ -233,36 +252,43 @@ class TemporalEncoder(nn.Module):
         data = encoded
 
         attention_start_time = time.time()
-        for i in range(self.attention_layers):
-            # Treat the various series as a batch dimension
-            mod_timesteps = self.layer_timesteps[i]
-            # [batch * series, time steps, embedding]
-            data = data.flatten(start_dim=0, end_dim=1)
-            # [time steps, batch * series, embedding] Correct order for PyTorch module
+        if self.use_multihead_attention:
+            data = data.view(num_batches, num_series * num_timesteps, self.embedding_dim)
             data = data.transpose(0, 1)
-            # Perform attention
-            data = mod_timesteps(data)
-            # [batch * series, time steps, embedding]
+            data, _ = self.multihead_attention(data, data, data)
             data = data.transpose(0, 1)
-            # [batch, series, time steps, embedding]
-            data = data.unflatten(dim=0, sizes=(num_batches, num_series))
+            data = data.view(num_batches, num_series, num_timesteps, self.embedding_dim)
+        else:
+            for i in range(self.attention_layers):
+                # Treat the various series as a batch dimension
+                mod_timesteps = self.layer_timesteps[i]
+                # [batch * series, time steps, embedding]
+                data = data.flatten(start_dim=0, end_dim=1)
+                # [time steps, batch * series, embedding] Correct order for PyTorch module
+                data = data.transpose(0, 1)
+                # Perform attention
+                data = mod_timesteps(data)
+                # [batch * series, time steps, embedding]
+                data = data.transpose(0, 1)
+                # [batch, series, time steps, embedding]
+                data = data.unflatten(dim=0, sizes=(num_batches, num_series))
 
-            # Treat the various time steps as a batch dimension
-            mod_series = self.layer_series[i]
-            # Transpose to [batch, timesteps, series, embedding]
-            data = data.transpose(1, 2)
-            # [batch * time steps, series, embedding] Correct order for PyTorch module
-            data = data.flatten(start_dim=0, end_dim=1)
-            # [series, batch * time steps, embedding]
-            data = data.transpose(0, 1)
-            # Perform attention
-            data = mod_series(data)
-            # [batch * time steps, series, embedding]
-            data = data.transpose(0, 1)
-            # [batch, time steps, series, embedding]
-            data = data.unflatten(dim=0, sizes=(num_batches, num_timesteps))
-            # Transpose to [batch, series, time steps, embedding]
-            data = data.transpose(1, 2)
+                # Treat the various time steps as a batch dimension
+                mod_series = self.layer_series[i]
+                # Transpose to [batch, timesteps, series, embedding]
+                data = data.transpose(1, 2)
+                # [batch * time steps, series, embedding] Correct order for PyTorch module
+                data = data.flatten(start_dim=0, end_dim=1)
+                # [series, batch * time steps, embedding]
+                data = data.transpose(0, 1)
+                # Perform attention
+                data = mod_series(data)
+                # [batch * time steps, series, embedding]
+                data = data.transpose(0, 1)
+                # [batch, time steps, series, embedding]
+                data = data.unflatten(dim=0, sizes=(num_batches, num_timesteps))
+                # Transpose to [batch, series, time steps, embedding]
+                data = data.transpose(1, 2)
 
         attention_end_time = time.time()
         self.total_attention_time = attention_end_time - attention_start_time

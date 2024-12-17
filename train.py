@@ -153,6 +153,28 @@ def main(args):
                 "flow_layers": args.dsf_num_layers,
                 "flow_hid_dim": args.dsf_dim,
             },
+            "t_copula": {
+                "attention_heads": args.t_copula_num_heads,
+                "attention_layers": args.t_copula_num_layers,
+                "attention_dim": args.t_copula_dim,
+                "mlp_layers": args.t_copula_mlp_layers,
+                "mlp_dim": args.t_copula_mlp_dim,
+                "resolution": args.t_copula_resolution,
+                "attention_mlp_class": args.t_copula_attention_mlp_class,
+                "dropout": 0.0,
+                "activation_function": activation_function,
+            },
+            "gaussian_copula": {
+                "attention_heads": args.gaussian_copula_num_heads,
+                "attention_layers": args.gaussian_copula_num_layers,
+                "attention_dim": args.gaussian_copula_dim,
+                "mlp_layers": args.gaussian_copula_mlp_layers,
+                "mlp_dim": args.gaussian_copula_mlp_dim,
+                "resolution": args.gaussian_copula_resolution,
+                "attention_mlp_class": args.gaussian_copula_attention_mlp_class,
+                "dropout": 0.0,
+                "activation_function": activation_function,
+            },
         },
         "experiment_mode": args.experiment_mode,
         "skip_copula": skip_copula,
@@ -330,54 +352,82 @@ if __name__ == "__main__":
     )
     # Shared encoder
     parser.add_argument("--flow_encoder_num_layers", type=int, default=2, help="Number of Layers in the Flow Encoder")
-    parser.add_argument("--flow_encoder_num_heads", type=int, default=1, help="Number of Heads in the Flow Encoder")
+    parser.add_argument("--flow_encoder_num_heads", type.int, default=1, help="Number of Heads in the Flow Encoder")
     parser.add_argument("--flow_encoder_dim", type=int, default=16, help="Embedding Dimension of the Flow Encoder")
     # Shared encoder
     parser.add_argument(
-        "--copula_encoder_num_layers", type=int, default=2, help="Number of Layers in the Copula Encoder"
+        "--copula_encoder_num_layers", type.int, default=2, help="Number of Layers in the Copula Encoder"
     )
-    parser.add_argument("--copula_encoder_num_heads", type=int, default=1, help="Number of Heads in the Copula Encoder")
-    parser.add_argument("--copula_encoder_dim", type=int, default=16, help="Embedding Dimension of the Copula Encoder")
+    parser.add_argument("--copula_encoder_num_heads", type.int, default=1, help="Number of Heads in the Copula Encoder")
+    parser.add_argument("--copula_encoder_dim", type.int, default=16, help="Embedding Dimension of the Copula Encoder")
     # Attentional Copula Decoder
-    parser.add_argument("--decoder_num_layers", type=int, default=1, help="Number of Layers in the Attentional Copula")
-    parser.add_argument("--decoder_num_heads", type=int, default=3, help="Number of Heads in the Attentional Copula")
-    parser.add_argument("--decoder_dim", type=int, default=8, help="Embedding Dimension of the Attentional Copula")
+    parser.add_argument("--decoder_num_layers", type.int, default=1, help="Number of Layers in the Attentional Copula")
+    parser.add_argument("--decoder_num_heads", type.int, default=3, help="Number of Heads in the Attentional Copula")
+    parser.add_argument("--decoder_dim", type.int, default=8, help="Embedding Dimension of the Attentional Copula")
     parser.add_argument(
         "--decoder_attention_mlp_class",
-        type=str,
+        type.str,
         default="_simple_linear_projection",
         choices=["_easy_mlp", "_simple_linear_projection"],
         help="MLP Type to be used in the Attentional Copula",
     )
     # Final layers in the decoder
-    parser.add_argument("--decoder_resolution", type=int, default=20, help="Number of bins in the Attentional Copula")
+    parser.add_argument("--decoder_resolution", type.int, default=20, help="Number of bins in the Attentional Copula")
     parser.add_argument(
-        "--decoder_mlp_layers", type=int, default=2, help="Number of layers in the final MLP in the Decoder"
+        "--decoder_mlp_layers", type.int, default=2, help="Number of layers in the final MLP in the Decoder"
     )
     parser.add_argument(
-        "--decoder_mlp_dim", type=int, default=48, help="Embedding Dimension of the final MLP in the Decoder"
+        "--decoder_mlp_dim", type.int, default=48, help="Embedding Dimension of the final MLP in the Decoder"
     )
     parser.add_argument(
         "--decoder_act",
-        type=str,
+        type.str,
         default="relu",
         choices=["relu", "elu", "glu", "gelu"],
         help="Activation Function to be used in the Decoder",
     )
     # DSF Marginal
-    parser.add_argument("--dsf_num_layers", type=int, default=2, help="Number of layers in the deep sigmoidal flow")
-    parser.add_argument("--dsf_dim", type=int, default=48, help="Embedding Dimension of the deep sigmoidal flow")
+    parser.add_argument("--dsf_num_layers", type.int, default=2, help="Number of layers in the deep sigmoidal flow")
+    parser.add_argument("--dsf_dim", type.int, default=48, help="Embedding Dimension of the deep sigmoidal flow")
     parser.add_argument(
-        "--dsf_mlp_layers", type=int, default=2, help="Number of layers in the marginal conditioner MLP"
+        "--dsf_mlp_layers", type.int, default=2, help="Number of layers in the marginal conditioner MLP"
     )
     parser.add_argument(
-        "--dsf_mlp_dim", type=int, default=48, help="Embedding Dimension of the marginal conditioner MLP"
+        "--dsf_mlp_dim", type.int, default=48, help="Embedding Dimension of the marginal conditioner MLP"
     )
+    # T Copula
+    parser.add_argument("--t_copula_num_layers", type.int, default=1, help="Number of Layers in the T Copula")
+    parser.add_argument("--t_copula_num_heads", type.int, default=3, help="Number of Heads in the T Copula")
+    parser.add_argument("--t_copula_dim", type.int, default=8, help="Embedding Dimension of the T Copula")
+    parser.add_argument(
+        "--t_copula_attention_mlp_class",
+        type.str,
+        default="_simple_linear_projection",
+        choices=["_easy_mlp", "_simple_linear_projection"],
+        help="MLP Type to be used in the T Copula",
+    )
+    parser.add_argument("--t_copula_resolution", type.int, default=20, help="Number of bins in the T Copula")
+    parser.add_argument("--t_copula_mlp_layers", type.int, default=2, help="Number of layers in the final MLP in the T Copula")
+    parser.add_argument("--t_copula_mlp_dim", type.int, default=48, help="Embedding Dimension of the final MLP in the T Copula")
+    # Gaussian Copula
+    parser.add_argument("--gaussian_copula_num_layers", type.int, default=1, help="Number of Layers in the Gaussian Copula")
+    parser.add_argument("--gaussian_copula_num_heads", type.int, default=3, help="Number of Heads in the Gaussian Copula")
+    parser.add_argument("--gaussian_copula_dim", type.int, default=8, help="Embedding Dimension of the Gaussian Copula")
+    parser.add_argument(
+        "--gaussian_copula_attention_mlp_class",
+        type.str,
+        default="_simple_linear_projection",
+        choices=["_easy_mlp", "_simple_linear_projection"],
+        help="MLP Type to be used in the Gaussian Copula",
+    )
+    parser.add_argument("--gaussian_copula_resolution", type.int, default=20, help="Number of bins in the Gaussian Copula")
+    parser.add_argument("--gaussian_copula_mlp_layers", type.int, default=2, help="Number of layers in the final MLP in the Gaussian Copula")
+    parser.add_argument("--gaussian_copula_mlp_dim", type.int, default=48, help="Embedding Dimension of the final MLP in the Gaussian Copula")
 
     # Loss normalization
     parser.add_argument(
         "--loss_normalization",
-        type=str,
+        type.str,
         default="both",
         choices=["", "none", "series", "timesteps", "both"],
         help="Loss normalization type",
@@ -386,7 +436,7 @@ if __name__ == "__main__":
     # Modify this argument to use interpolation
     parser.add_argument(
         "--experiment_mode",
-        type=str,
+        type.str,
         choices=["forecasting", "interpolation"],
         default="forecasting",
         help="Operation mode of the model",
